@@ -153,7 +153,7 @@ class Blocks : Extractor.Extractor {
                 stateJson.addProperty("piston_behavior", state.pistonPushReaction.name)
                 stateJson.addProperty("hardness", state.getDestroySpeed(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
 
-                    stateJson.addProperty("opacity", state.lightBlock)
+                stateJson.addProperty("opacity", state.lightDampening)
 
                 if (block.defaultBlockState() == state) {
                     blockJson.addProperty("default_state_id", Block.getId(state))
