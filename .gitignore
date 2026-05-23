@@ -1,6 +1,7 @@
 .gradle
 **/build/
 !src/**/build/
+/bin
 
 # Package Files #
 *.jar

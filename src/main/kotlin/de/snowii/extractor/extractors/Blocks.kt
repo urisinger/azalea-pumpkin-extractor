@@ -18,6 +18,8 @@ import net.minecraft.world.phys.AABB
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter
 import net.minecraft.world.level.EmptyBlockGetter
+import net.minecraft.world.level.block.BambooSaplingBlock
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.FireBlock
 import java.util.*
 
@@ -73,17 +75,46 @@ class Blocks : Extractor.Extractor {
 
         val flammableData = getFlammableData()
 
+        // We don't have a way to easily get the offsetType for blocks, but we do have offsetFunction, so we extract it
+        // from blocks with known offsetFunctions to be able to compare.
+        var xzOffsetFunction = Blocks.BAMBOO_SAPLING.properties().offsetFunction
+        var xyzOffsetFunction = Blocks.SHORT_GRASS.properties().offsetFunction
+
         for (block in BuiltInRegistries.BLOCK) {
             val blockJson = JsonObject()
             blockJson.addProperty("id", BuiltInRegistries.BLOCK.getId(block))
             blockJson.addProperty("name", BuiltInRegistries.BLOCK.getKey(block).path)
             blockJson.addProperty("translation_key", block.descriptionId)
-            blockJson.addProperty("slipperiness", block.friction)
+            blockJson.addProperty("friction", block.friction)
             blockJson.addProperty("velocity_multiplier", block.speedFactor)
             blockJson.addProperty("jump_velocity_multiplier", block.jumpFactor)
             blockJson.addProperty("hardness", block.defaultDestroyTime())
             blockJson.addProperty("blast_resistance", block.explosionResistance)
             blockJson.addProperty("item_id", BuiltInRegistries.ITEM.getId(block.asItem()))
+            if (block.defaultBlockState().requiresCorrectToolForDrops()) {
+                // I don't think there's any blocks where the correct tool differs between states, so this is fine
+                blockJson.addProperty("requires_correct_tool_for_drops", true)
+            }
+            if (block.properties().forceSolidOn) {
+                blockJson.addProperty("force_solid_on", true)
+            }
+            if (block.properties().forceSolidOff) {
+                blockJson.addProperty("force_solid_off", true)
+            }
+            var thisOffsetFunction = block.properties().offsetFunction
+            if (thisOffsetFunction != null) {
+                var offsetType: String
+                if (thisOffsetFunction == xzOffsetFunction) {
+                    offsetType = "XZ"
+                } else if (thisOffsetFunction == xyzOffsetFunction) {
+                    offsetType = "XZ"
+                } else {
+                    throw Exception("Block with unknown offsetFunction: $block")
+                }
+                blockJson.addProperty("offset_type", offsetType)
+            }
+
+
 
             // Add flammable data if this block is flammable
             flammableData[block]?.let { (spreadChance, burnChance) ->
