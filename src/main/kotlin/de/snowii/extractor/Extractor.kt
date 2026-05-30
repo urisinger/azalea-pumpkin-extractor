@@ -61,7 +61,7 @@ class Extractor : ModInitializer {
 
         val outputDirectory: Path
         try {
-            outputDirectory = Files.createDirectories(Paths.get("pumpkin_extractor_output"))
+            outputDirectory = Files.createDirectories(Paths.get("pumpkin_extractor_output_server"))
         } catch (e: IOException) {
             logger.info("Failed to create output directory.", e)
             return
