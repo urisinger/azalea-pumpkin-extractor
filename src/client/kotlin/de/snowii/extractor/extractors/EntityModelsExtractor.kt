@@ -9,10 +9,12 @@ import net.minecraft.client.model.geom.builders.CubeDefinition
 import net.minecraft.client.model.geom.builders.CubeDeformation
 import net.minecraft.client.model.geom.builders.LayerDefinition
 import net.minecraft.client.model.geom.builders.PartDefinition
+import net.minecraft.client.model.geom.builders.UVPair
 import net.minecraft.core.Direction
 import org.joml.Vector3fc
 import java.lang.reflect.Field
 import java.util.EnumSet
+
 class EntityModelsExtractor : ExtractorClient.ClientExtractor {
     override fun fileName(): String = "entity_models.json"
 
@@ -68,20 +70,36 @@ class EntityModelsExtractor : ExtractorClient.ClientExtractor {
         val grow = getPrivateField<CubeDeformation>(cube, "grow")
         val visibleFaces = getPrivateField<Set<Direction>>(cube, "visibleFaces")
 
+        // Accessing texture properties
+        val texCoord = getPrivateField<UVPair>(cube, "texCoord") // UVPair
+        val texScale = getPrivateField<UVPair>(cube, "texScale") // UVPair
+
         return JsonObject().apply {
             add("origin", vec3ToJson(origin.x(), origin.y(), origin.z()))
             add("dimensions", vec3ToJson(dimensions.x(), dimensions.y(), dimensions.z()))
             add("grow", vec3fromGrow(grow))
             addProperty("mirror", getPrivateField<Boolean>(cube, "mirror"))
 
-            // Map Direction Set to [bool; 6] (Down, Up, North, South, West, East)
+            // Adding texture coordinate mapping
+            add("tex_coord", vec2FromUVPair(texCoord))
+            add("tex_scale", vec2FromUVPair(texScale))
+
             val faces = JsonArray()
-            val order =
-                arrayOf(Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST)
+            val order = arrayOf(
+                Direction.DOWN, Direction.UP, Direction.NORTH,
+                Direction.SOUTH, Direction.WEST, Direction.EAST
+            )
             for (dir in order) {
                 faces.add(visibleFaces.contains(dir))
             }
             add("visible_faces", faces)
+        }
+    }
+
+    private fun vec2FromUVPair(uv: UVPair): JsonArray {
+        return JsonArray().apply {
+            add(uv.u)
+            add(uv.v)
         }
     }
 
@@ -110,8 +128,8 @@ class EntityModelsExtractor : ExtractorClient.ClientExtractor {
 
     private fun vec3fromGrow(vec: CubeDeformation): JsonArray {
         // Simple reflection to get x, y, z from Joml/Minecraft vector classes
-        val x = getPrivateField(vec,"growX") as Float
-        val y = getPrivateField(vec,"growY") as Float
+        val x = getPrivateField(vec, "growX") as Float
+        val y = getPrivateField(vec, "growY") as Float
         val z = getPrivateField(vec, "growZ") as Float
         return vec3ToJson(x, y, z)
     }
