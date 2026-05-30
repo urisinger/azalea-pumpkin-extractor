@@ -1,137 +1,118 @@
 package de.snowii.extractor.extractors
 
-import com.google.gson.JsonArray
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import com.mojang.authlib.minecraft.client.MinecraftClient
+import com.google.gson.*
 import de.snowii.extractor.ExtractorClient
-import kotlinx.serialization.json.JsonNull
 import net.minecraft.client.Minecraft
-import net.minecraft.client.model.EntityModel
 import net.minecraft.client.model.geom.EntityModelSet
-import net.minecraft.client.model.geom.ModelPart
-import net.minecraft.client.renderer.entity.state.EntityRenderState
-import net.minecraft.world.entity.Display
-import org.joml.Vector3f
+import net.minecraft.client.model.geom.PartPose
+import net.minecraft.client.model.geom.builders.CubeDefinition
+import net.minecraft.client.model.geom.builders.CubeDeformation
+import net.minecraft.client.model.geom.builders.LayerDefinition
+import net.minecraft.client.model.geom.builders.PartDefinition
+import net.minecraft.core.Direction
 import org.joml.Vector3fc
 import java.lang.reflect.Field
-
+import java.util.EnumSet
 class EntityModelsExtractor : ExtractorClient.ClientExtractor {
     override fun fileName(): String = "entity_models.json"
 
     override fun extract(client: Minecraft): JsonElement {
         val modelSet = EntityModelSet.vanilla()
-
-        val field: Field = EntityModelSet::class.java.getDeclaredField("roots")
-        field.isAccessible = true // Bypass the private modifier
-
-        // Cast the retrieved object to your map
-        @Suppress("UNCHECKED_CAST")
-        val rootsMap = field.get(modelSet) as Map<net.minecraft.client.model.geom.ModelLayerLocation, net.minecraft.client.model.geom.builders.LayerDefinition>
+        val rootsMap = getPrivateField<Map<Any, LayerDefinition>>(modelSet, "roots")
 
         val topLevelJson = JsonObject()
-        EntityRenderState
-        for ((layerLocation, layerDefinition) in rootsMap) {
-            // layerDefinition.bakeRoot() returns the ModelPart tree
-            val modelPart: ModelPart = layerDefinition.bakeRoot()
-            val modelJson = extractModelPart(modelPart)
 
-            // Use the layer location as the key
-            topLevelJson.add(layerLocation.toString(), modelJson)
+        for ((location, layerDef) in rootsMap) {
+            val mesh = getPrivateField<Any>(layerDef, "mesh")
+            val rootPart = getPrivateField<PartDefinition>(mesh, "root")
+
+            topLevelJson.add(location.toString(), serializePartDefinition(rootPart))
         }
-
         return topLevelJson
     }
 
-    private fun extractModelPart(part: ModelPart): JsonObject {
+    private fun serializePartDefinition(part: PartDefinition): JsonObject {
+        val pose = getPrivateField<PartPose>(part, "partPose")
+        val cubes = getPrivateField<List<CubeDefinition>>(part, "cubes")
+        val children = getPrivateField<Map<String, PartDefinition>>(part, "children")
+
         val json = JsonObject()
 
-        // default_transform instead of defaultTransform
-        json.add("default_transform", transformToJson(part.defaultTransform))
+        // 1. Transform
+        json.add("transform", JsonObject().apply {
+            add("pivot", vec3ToJson(pose.x, pose.y, pose.z))
+            add("rotation", vec3ToJson(pose.xRot, pose.yRot, pose.zRot))
+            add("scale", vec3ToJson(pose.xScale, pose.yScale, pose.zScale))
+        })
 
-        // cuboids
-        val cuboidArray = JsonArray()
-        for (cuboid in part.cuboids) {
-            val cuboidJson = JsonObject()
-            cuboidJson.add("min", vec3ToJson(cuboid.minX, cuboid.minY, cuboid.minZ))
-            cuboidJson.add("max", vec3ToJson(cuboid.maxX, cuboid.maxY, cuboid.maxZ))
-
-            val sidesArray = JsonArray()
-            for (side in cuboid.sides) {
-                val sideJson = JsonObject()
-                sideJson.addProperty("dir", directionToString(side.direction))
-
-                val verticesArray = JsonArray()
-                for (vertex in side.vertices) {
-                    val vertexJson = JsonObject()
-                    vertexJson.add("pos", vec3ToJson(vertex.x, vertex.y, vertex.z))
-                    vertexJson.add("uv", vec2ToJson(vertex.u, vertex.v))
-                    verticesArray.add(vertexJson)
-                }
-
-                sideJson.add("vertices", verticesArray)
-                sidesArray.add(sideJson)
-            }
-
-            cuboidJson.add("sides", sidesArray)
-            cuboidArray.add(cuboidJson)
+        // 2. Cubes
+        val cubesArray = JsonArray()
+        for (cube in cubes) {
+            cubesArray.add(serializeCube(cube))
         }
-        json.add("cuboids", cuboidArray)
+        json.add("cubes", cubesArray)
 
-        // children
+        // 3. Children (Recursive)
         val childrenJson = JsonObject()
-        for ((name, child) in part.children) {
-            childrenJson.add(name, extractModelPart(child))
+        for ((name, child) in children) {
+            childrenJson.add(name, serializePartDefinition(child))
         }
         json.add("children", childrenJson)
 
         return json
     }
 
-    private fun transformToJson(transform: net.minecraft.client.model.ModelTransform): JsonObject {
+    private fun serializeCube(cube: CubeDefinition): JsonObject {
+        val origin = getPrivateField<Vector3fc>(cube, "origin")
+        val dimensions = getPrivateField<Vector3fc>(cube, "dimensions")
+        val grow = getPrivateField<CubeDeformation>(cube, "grow")
+        val visibleFaces = getPrivateField<Set<Direction>>(cube, "visibleFaces")
+
         return JsonObject().apply {
-            add("pivot", vec3ToJson(transform.x, transform.y, transform.z))
-            add("rotation", vec3ToJson(transform.pitch, transform.yaw, transform.roll))
-            add("scale", vec3ToJson(transform.xScale, transform.yScale, transform.zScale))
+            add("origin", vec3ToJson(origin.x(), origin.y(), origin.z()))
+            add("dimensions", vec3ToJson(dimensions.x(), dimensions.y(), dimensions.z()))
+            add("grow", vec3fromGrow(grow))
+            addProperty("mirror", getPrivateField<Boolean>(cube, "mirror"))
+
+            // Map Direction Set to [bool; 6] (Down, Up, North, South, West, East)
+            val faces = JsonArray()
+            val order =
+                arrayOf(Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST)
+            for (dir in order) {
+                faces.add(visibleFaces.contains(dir))
+            }
+            add("visible_faces", faces)
         }
     }
 
-    private fun vec3ToJson(x: Float, y: Float, z: Float): JsonArray? {
-        if (x.isNaN() || y.isNaN() || z.isNaN()) return null
+    // --- Reflection Helpers ---
 
-        return JsonArray().apply {
-            add( x)
-            add( y)
-            add( z)
-        }
+    private fun <T> getPrivateField(obj: Any, fieldName: String): T {
+        val field = obj.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        return field.get(obj) as T
     }
 
-    private fun vec2ToJson(u: Float, v: Float): JsonArray {
-        //if (u.isNaN() || v.isNaN()) return null
+    private fun findField(clazz: Class<*>, name: String): Field {
+        var current: Class<*>? = clazz
+        while (current != null) {
+            try {
 
-        return JsonArray().apply {
-            add(u)
-            add(v)
+            } catch (e: Exception) {
+            }
+            current = current.superclass
         }
+        throw NoSuchFieldException("Field $name not found in ${clazz.name}")
     }
 
-    private fun directionToString(dir: Vector3fc): String {
-        val x = dir.x()
-        val y = dir.y()
-        val z = dir.z()
+    private fun vec3ToJson(x: Float, y: Float, z: Float) = JsonArray().apply { add(x); add(y); add(z) }
 
-        // Map Minecraft side vectors to Direction enum
-        val directionString = when {
-            x == 0f && y == -1f && z == 0f -> "Down"
-            x == 0f && y == 1f && z == 0f -> "Up"
-            x == 0f && y == 0f && z == -1f -> "North"
-            x == 0f && y == 0f && z == 1f -> "South"
-            x == -1f && y == 0f && z == 0f -> "West"
-            x == 1f && y == 0f && z == 0f -> "East"
-            else -> "Down"
-        }
-
-        return directionString
+    private fun vec3fromGrow(vec: CubeDeformation): JsonArray {
+        // Simple reflection to get x, y, z from Joml/Minecraft vector classes
+        val x = getPrivateField(vec,"growX") as Float
+        val y = getPrivateField(vec,"growY") as Float
+        val z = getPrivateField(vec, "growZ") as Float
+        return vec3ToJson(x, y, z)
     }
-
 }

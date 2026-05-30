@@ -43,6 +43,6 @@ class ExtractorClient : ClientModInitializer {
 
     interface ClientExtractor {
         fun fileName(): String
-        fun extract(client: MinecraftClient): Any
+        fun extract(client: Minecraft): Any
     }
 }
