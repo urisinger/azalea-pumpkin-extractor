@@ -26,25 +26,25 @@ import java.util.*
 class Blocks : Extractor.Extractor {
 
     companion object {
-        private const val AIR               : Int = 1 shl 0
-        private const val BURNABLE          : Int = 1 shl 1
-        private const val TOOL_REQUIRED     : Int = 1 shl 2
+        private const val AIR: Int = 1 shl 0
+        private const val BURNABLE: Int = 1 shl 1
+        private const val TOOL_REQUIRED: Int = 1 shl 2
         private const val SIDED_TRANSPARENCY: Int = 1 shl 3
-        private const val REPLACEABLE       : Int = 1 shl 4
-        private const val IS_LIQUID         : Int = 1 shl 5
-        private const val IS_SOLID          : Int = 1 shl 6
-        private const val IS_FULL_CUBE      : Int = 1 shl 7
-        private const val IS_SOLID_BLOCK    : Int = 1 shl 8
-        private const val HAS_RANDOM_TICKS  : Int = 1 shl 9
+        private const val REPLACEABLE: Int = 1 shl 4
+        private const val IS_LIQUID: Int = 1 shl 5
+        private const val IS_SOLID: Int = 1 shl 6
+        private const val IS_FULL_CUBE: Int = 1 shl 7
+        private const val IS_SOLID_BLOCK: Int = 1 shl 8
+        private const val HAS_RANDOM_TICKS: Int = 1 shl 9
 
-        private const val DOWN_SIDE_SOLID   : Int = 1 shl 0;
-        private const val UP_SIDE_SOLID     : Int = 1 shl 1;
-        private const val NORTH_SIDE_SOLID  : Int = 1 shl 2;
-        private const val SOUTH_SIDE_SOLID  : Int = 1 shl 3;
-        private const val WEST_SIDE_SOLID   : Int = 1 shl 4;
-        private const val EAST_SIDE_SOLID   : Int = 1 shl 5;
-        private const val DOWN_CENTER_SOLID : Int = 1 shl 6;
-        private const val UP_CENTER_SOLID   : Int = 1 shl 7;
+        private const val DOWN_SIDE_SOLID: Int = 1 shl 0;
+        private const val UP_SIDE_SOLID: Int = 1 shl 1;
+        private const val NORTH_SIDE_SOLID: Int = 1 shl 2;
+        private const val SOUTH_SIDE_SOLID: Int = 1 shl 3;
+        private const val WEST_SIDE_SOLID: Int = 1 shl 4;
+        private const val EAST_SIDE_SOLID: Int = 1 shl 5;
+        private const val DOWN_CENTER_SOLID: Int = 1 shl 6;
+        private const val UP_CENTER_SOLID: Int = 1 shl 7;
     }
 
     override fun fileName(): String {
@@ -91,6 +91,8 @@ class Blocks : Extractor.Extractor {
             blockJson.addProperty("hardness", block.defaultDestroyTime())
             blockJson.addProperty("blast_resistance", block.explosionResistance)
             blockJson.addProperty("item_id", BuiltInRegistries.ITEM.getId(block.asItem()))
+            blockJson.addProperty("can_occlude", block.defaultBlockState().canOcclude())
+
             if (block.defaultBlockState().requiresCorrectToolForDrops()) {
                 // I don't think there's any blocks where the correct tool differs between states, so this is fine
                 blockJson.addProperty("requires_correct_tool_for_drops", true)
@@ -113,7 +115,6 @@ class Blocks : Extractor.Extractor {
                 }
                 blockJson.addProperty("offset_type", offsetType)
             }
-
 
 
             // Add flammable data if this block is flammable
@@ -154,7 +155,7 @@ class Blocks : Extractor.Extractor {
                 val stateJson = JsonObject()
                 var stateFlags = 0
                 var sideFlags = 0
-                
+
                 if (state.isAir) stateFlags = stateFlags or AIR
                 if (state.ignitedByLava()) stateFlags = stateFlags or BURNABLE
                 if (state.requiresCorrectToolForDrops()) stateFlags = stateFlags or TOOL_REQUIRED
@@ -162,20 +163,40 @@ class Blocks : Extractor.Extractor {
                 if (state.canBeReplaced()) stateFlags = stateFlags or REPLACEABLE
                 if (state.liquid()) stateFlags = stateFlags or IS_LIQUID
                 if (state.isSolid) stateFlags = stateFlags or IS_SOLID
-                if (state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) stateFlags = stateFlags or IS_FULL_CUBE
-                if (state.isRedstoneConductor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) stateFlags = stateFlags or IS_SOLID_BLOCK
+                if (state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) stateFlags =
+                    stateFlags or IS_FULL_CUBE
+                if (state.isRedstoneConductor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) stateFlags =
+                    stateFlags or IS_SOLID_BLOCK
                 if (state.isRandomlyTicking) stateFlags = stateFlags or HAS_RANDOM_TICKS
 
 
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.DOWN)) sideFlags = sideFlags or DOWN_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.UP)) sideFlags = sideFlags or UP_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.NORTH)) sideFlags = sideFlags or NORTH_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.SOUTH)) sideFlags = sideFlags or SOUTH_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.WEST)) sideFlags = sideFlags or WEST_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.EAST)) sideFlags = sideFlags or EAST_SIDE_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.DOWN, SupportType.CENTER)) sideFlags = sideFlags or DOWN_CENTER_SOLID
-                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.UP, SupportType.CENTER)) sideFlags = sideFlags or UP_CENTER_SOLID
-                
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.DOWN)) sideFlags =
+                    sideFlags or DOWN_SIDE_SOLID
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.UP)) sideFlags =
+                    sideFlags or UP_SIDE_SOLID
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.NORTH)) sideFlags =
+                    sideFlags or NORTH_SIDE_SOLID
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.SOUTH)) sideFlags =
+                    sideFlags or SOUTH_SIDE_SOLID
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.WEST)) sideFlags =
+                    sideFlags or WEST_SIDE_SOLID
+                if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.EAST)) sideFlags =
+                    sideFlags or EAST_SIDE_SOLID
+                if (state.isFaceSturdy(
+                        EmptyBlockGetter.INSTANCE,
+                        BlockPos.ZERO,
+                        Direction.DOWN,
+                        SupportType.CENTER
+                    )
+                ) sideFlags = sideFlags or DOWN_CENTER_SOLID
+                if (state.isFaceSturdy(
+                        EmptyBlockGetter.INSTANCE,
+                        BlockPos.ZERO,
+                        Direction.UP,
+                        SupportType.CENTER
+                    )
+                ) sideFlags = sideFlags or UP_CENTER_SOLID
+
                 stateJson.addProperty("id", Block.getId(state))
                 stateJson.addProperty("state_flags", stateFlags and 0xFFFF)
                 stateJson.addProperty("side_flags", sideFlags and 0xFF)
@@ -216,7 +237,10 @@ class Blocks : Extractor.Extractor {
 
                 for (blockEntity in BuiltInRegistries.BLOCK_ENTITY_TYPE) {
                     if (blockEntity.isValid(state)) {
-                        stateJson.addProperty("block_entity_type", BuiltInRegistries.BLOCK_ENTITY_TYPE.getId(blockEntity))
+                        stateJson.addProperty(
+                            "block_entity_type",
+                            BuiltInRegistries.BLOCK_ENTITY_TYPE.getId(blockEntity)
+                        )
                     }
                 }
 
