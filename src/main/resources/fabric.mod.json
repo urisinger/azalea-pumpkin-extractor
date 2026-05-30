@@ -12,7 +12,7 @@
     "main": ["de.snowii.extractor.Extractor"],
     "client": [
       "de.snowii.extractor.ExtractorClient"
-    ],
+    ]
   },
   "depends": {
     "fabricloader": "*",
